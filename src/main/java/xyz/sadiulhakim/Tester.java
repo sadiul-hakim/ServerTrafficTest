@@ -10,61 +10,47 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Duration;
 import java.util.Scanner;
 import java.util.UUID;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
+import java.util.stream.IntStream;
 
-public class Main {
+public class Tester {
     private static final Scanner input = new Scanner(System.in);
     private static final CopyOnWriteArrayList<Integer> result = new CopyOnWriteArrayList<>();
     private static final String BASE_PATH = "F:\\TrafficTest";
     private static final ObjectMapper mapper = new ObjectMapper();
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) {
+
         String url;
         int calls;
-        int batchSize;
-        int batchDelay;
 
         System.out.println("+-------------------------Traffic Tester----------------------+");
         System.out.println("Enter the url: ");
         url = input.nextLine();
         System.out.println("Enter number of calls: ");
         calls = input.nextInt();
-        System.out.println("Enter batch size: ");
-        batchSize = input.nextInt();
-        System.out.println("Enter Delay (in millis) between two batches: ");
-        batchDelay = input.nextInt();
 
         HttpRequest request = HttpRequest.newBuilder()
                 .GET()
                 .uri(URI.create(url))
                 .build();
 
-        long start = System.currentTimeMillis();
         try (HttpClient client = HttpClient.newBuilder().executor(Executors.newVirtualThreadPerTaskExecutor()).build()) {
+            long start = System.currentTimeMillis();
+            IntStream.rangeClosed(1, calls)
+                    .parallel()
+                    .forEach(num -> sendGetRequest(client, request));
+            long end = System.currentTimeMillis();
+            System.out.printf("Total time taken: %s s\n", (end - start) / 1000.0);
+            System.out.println("Result Size: " + result.size());
 
-            int count = 0;
-            for (int i = 1; i <= calls; i++) {
-                if (count == batchSize && batchDelay > 0) {
-                    Thread.sleep(Duration.ofMillis(batchDelay));
-                    count = 0;
-                }
-
-                sendGetRequest(client, request);
-                count++;
-            }
-        } catch (Exception ex) {
-            System.out.println(ex.getMessage());
+            writeToFile();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
-        long end = System.currentTimeMillis();
-
-        writeToFile();
-
-        System.out.printf("Total time taken: %s s\n", (end - start) / 1000.0);
-        System.out.println("Result Size: " + result.size());
     }
 
     private static void writeToFile() throws IOException {
